@@ -1,7 +1,10 @@
 import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,5 +70,43 @@ public class LivreDAO {
             System.err.println("Erreur : " + e.getMessage());
         }
         return liste;
+    }
+
+    public void emprunterLivre(int idLivre, int idInscrit) {
+        String sqlSearchExemplaire = "SELECT ref_e FROM exemplaire WHERE id_l = ? LIMIT 1";
+
+        String sqlInsertEmprunt = "INSERT INTO emprunt (ref_e, id_i, date_em) VALUES (?, ?, ?)";
+
+        try {
+            int idExemplaireTrouve = -1;
+
+            try (PreparedStatement stmtSearch = connection.prepareStatement(sqlSearchExemplaire)) {
+                stmtSearch.setInt(1, idLivre);
+                ResultSet rs = stmtSearch.executeQuery();
+
+                if (rs.next()) {
+                    idExemplaireTrouve = rs.getInt("ref_e");
+                }
+            }
+
+            if (idExemplaireTrouve != -1) {
+                try (PreparedStatement stmtInsert = connection.prepareStatement(sqlInsertEmprunt)) {
+                    stmtInsert.setInt(1, idExemplaireTrouve);
+                    stmtInsert.setInt(2, idInscrit);
+                    stmtInsert.setDate(3, java.sql.Date.valueOf(java.time.LocalDate.now()));
+
+                    int rows = stmtInsert.executeUpdate();
+                    if (rows > 0) {
+                        System.out.println("Succès : L'exemplaire n°" + idExemplaireTrouve + " (du livre " + idLivre
+                                + ") a été emprunté.");
+                    }
+                }
+            } else {
+                System.out.println("Désolé, aucun exemplaire n'a été trouvé pour le livre ID " + idLivre);
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Erreur SQL : " + e.getMessage());
+        }
     }
 }
