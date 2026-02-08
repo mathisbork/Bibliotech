@@ -1,5 +1,5 @@
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.Properties;
@@ -14,8 +14,8 @@ public class DbManager {
 
     private DbManager() {
         try {
-            InputStream input = getClass().getClassLoader().getResourceAsStream("ressources/db.properties");
-            p.load(input);
+            String cheminPhysique = "C:/Users/mathis/Documents/BiblioTech/ressources/db.properties";
+            p.load(new FileInputStream(cheminPhysique));
             url = p.getProperty("db.url");
             username = p.getProperty("db.user");
             password = p.getProperty("db.password");

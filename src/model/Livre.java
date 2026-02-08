@@ -6,6 +6,7 @@ public class Livre {
     private int isbn;
     private Auteur auteur;
     private LocalDate dateParution;
+    private String genre;
 
     public Livre() {
     }
@@ -15,10 +16,25 @@ public class Livre {
         this.id = id;
         this.isbn = isbn;
         this.auteur = auteur;
+        this.genre = genre;
+        this.dateParution = dateParution;
+    }
+
+    @Override
+    public String toString() {
+        return titre + " (" + genre + ") - " + (auteur != null ? auteur.getNom() : "Inconnu");
     }
 
     public String getTitre() {
         return titre;
+    }
+
+    public String getGenre() {
+        return genre;
+    }
+
+    public void setGenre(String genre) {
+        this.genre = genre;
     }
 
     public int getId() {
