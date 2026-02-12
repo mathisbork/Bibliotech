@@ -1,18 +1,31 @@
 import java.sql.Connection;
-import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Date;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ResourceBundle;
 
 public class LivreDAO {
     private final Connection connection;
+    private ResourceBundle bundle;
 
     public LivreDAO(Connection connection) {
         this.connection = connection;
+    }
+
+    public void setBundle(ResourceBundle bundle) {
+        this.bundle = bundle;
+    }
+
+    private String getText(String key) {
+        if (bundle != null && bundle.containsKey(key)) {
+            return bundle.getString(key);
+        }
+        return key;
     }
 
     public void listerTousLesLivres() {
@@ -24,7 +37,7 @@ public class LivreDAO {
         try (Statement stmt = connection.createStatement();
                 ResultSet rs = stmt.executeQuery(sql)) {
 
-            System.out.println("--- Liste des Livres ---");
+            System.out.println("--- " + getText("menu.choix1") + " ---");
 
             while (rs.next()) {
                 int id = rs.getInt("id_l");
@@ -36,12 +49,13 @@ public class LivreDAO {
                 System.out.println("[" + id + "] " + titre + " (" + annee + ") - Auteur : " + prenom + " " + nom);
             }
         } catch (SQLException e) {
-            System.err.println("Erreur SQL lors du listing : " + e.getMessage());
+            System.err.println(getText("msg.erreur_sql") + " " + e.getMessage());
         }
     }
 
     public List<Livre> getAllLivres() {
         List<Livre> liste = new ArrayList<>();
+
         String sql = "SELECT l.id_l, l.titre_l, l.annee_l, a.prenom_a, a.nom_a, a.id_a, t.libelle_t " +
                 "FROM livre l " +
                 "JOIN rediger r ON l.id_l = r.id_l " +
@@ -62,51 +76,56 @@ public class LivreDAO {
                 liv.setGenre(rs.getString("libelle_t"));
 
                 int annee = rs.getInt("annee_l");
-                liv.setDateParution(java.time.LocalDate.of(annee, 1, 1));
+                liv.setDateParution(LocalDate.of(annee, 1, 1));
 
                 liste.add(liv);
             }
         } catch (SQLException e) {
-            System.err.println("Erreur : " + e.getMessage());
+            System.err.println(getText("msg.erreur_sql") + " " + e.getMessage());
         }
         return liste;
     }
 
-    public void emprunterLivre(int idLivre, int idInscrit) {
-        String sqlSearchExemplaire = "SELECT ref_e FROM exemplaire WHERE id_l = ? LIMIT 1";
+    public void emprunterLivre(int idLivre, int idInscrit, int nbJours) {
 
-        String sqlInsertEmprunt = "INSERT INTO emprunt (ref_e, id_i, date_em) VALUES (?, ?, ?)";
+        String sqlSearch = "SELECT ref_e FROM exemplaire " +
+                "WHERE id_l = ? " +
+                "AND ref_e NOT IN (SELECT ref_e FROM emprunt)";
+
+        String sqlInsert = "INSERT INTO emprunt (ref_e, id_i, date_em, delais_em) VALUES (?, ?, ?, ?)";
 
         try {
-            int idExemplaireTrouve = -1;
+            String refExemplaire = null;
 
-            try (PreparedStatement stmtSearch = connection.prepareStatement(sqlSearchExemplaire)) {
+            try (PreparedStatement stmtSearch = connection.prepareStatement(sqlSearch)) {
                 stmtSearch.setInt(1, idLivre);
-                ResultSet rs = stmtSearch.executeQuery();
 
-                if (rs.next()) {
-                    idExemplaireTrouve = rs.getInt("ref_e");
+                try (ResultSet rs = stmtSearch.executeQuery()) {
+                    if (rs.next()) {
+                        refExemplaire = rs.getString("ref_e");
+                    }
                 }
             }
 
-            if (idExemplaireTrouve != -1) {
-                try (PreparedStatement stmtInsert = connection.prepareStatement(sqlInsertEmprunt)) {
-                    stmtInsert.setInt(1, idExemplaireTrouve);
+            if (refExemplaire != null) {
+                try (PreparedStatement stmtInsert = connection.prepareStatement(sqlInsert)) {
+                    stmtInsert.setString(1, refExemplaire);
                     stmtInsert.setInt(2, idInscrit);
-                    stmtInsert.setDate(3, java.sql.Date.valueOf(java.time.LocalDate.now()));
+                    stmtInsert.setDate(3, Date.valueOf(LocalDate.now()));
+                    stmtInsert.setInt(4, nbJours);
 
                     int rows = stmtInsert.executeUpdate();
                     if (rows > 0) {
-                        System.out.println("Succès : L'exemplaire n°" + idExemplaireTrouve + " (du livre " + idLivre
-                                + ") a été emprunté.");
+                        System.out.println(getText("msg.succes") + " (Exemplaire : " + refExemplaire + ")");
                     }
                 }
             } else {
-                System.out.println("Désolé, aucun exemplaire n'a été trouvé pour le livre ID " + idLivre);
+                System.out.println(
+                        getText("msg.erreur") + " Aucun exemplaire disponible pour le livre ID " + idLivre);
             }
 
         } catch (SQLException e) {
-            System.err.println("Erreur SQL : " + e.getMessage());
+            System.err.println(getText("msg.erreur_sql") + " " + e.getMessage());
         }
     }
 }
