@@ -1,6 +1,9 @@
+import config.DbManager;
+import dao.LivreDAO;
+import model.Livre;
+import java.io.FileInputStream;
 import java.sql.Connection;
-import java.util.List;
-import java.util.Locale;
+import java.util.PropertyResourceBundle;
 import java.util.ResourceBundle;
 import java.util.Scanner;
 
@@ -10,92 +13,90 @@ public class Main {
 
         if (connected != null) {
             try (Scanner scanner = new Scanner(System.in)) {
-
-                // --- 1. CHOIX DE LA LANGUE (I18N) ---
+                
+                // --- 1. CHOIX DE LA LANGUE (Chargement Robuste) ---
                 System.out.println("1. Français");
                 System.out.println("2. English");
                 System.out.print("Choice: ");
-
-                int langChoice = 0;
+                
+                int lang = 1;
                 if (scanner.hasNextInt()) {
-                    langChoice = scanner.nextInt();
-                    scanner.nextLine(); // Nettoyage tampon
+                    lang = scanner.nextInt();
+                    scanner.nextLine(); // Vide le buffer
                 }
 
-                Locale locale;
-                if (langChoice == 2) {
-                    locale = new Locale("en", "US"); // Anglais
-                } else {
-                    locale = Locale.FRANCE; // Français par défaut
+                // On construit le chemin vers le fichier de langue
+                String rootPath = System.getProperty("user.dir");
+                String langFile = (lang == 2) ? "messages_en.properties" : "messages_fr.properties";
+                // ATTENTION : Vérifie si tes fichiers sont dans 'src' ou 'src/ressources'
+                String fullPath = rootPath + "/src/" + langFile; 
+
+                ResourceBundle bundle;
+                try (FileInputStream fis = new FileInputStream(fullPath)) {
+                    bundle = new PropertyResourceBundle(fis);
+                } catch (Exception e) {
+                    System.err.println("Erreur langue (fichier introuvable) : " + fullPath);
+                    return; // On arrête si pas de langue
                 }
 
-                // Chargement du fichier messages_fr.properties ou messages_en.properties
-                ResourceBundle bundle = ResourceBundle.getBundle("messages", locale);
+                LivreDAO dao = new LivreDAO(connected);
+                dao.setBundle(bundle);
 
-                // Initialisation du DAO avec la langue
-                LivreDAO livreManager = new LivreDAO(connected);
-                livreManager.setBundle(bundle); // On donne le dictionnaire au DAO
-
-                // --- BOUCLE PRINCIPALE ---
-                int choixUtilisateur = 0;
+                // --- 2. BOUCLE PRINCIPALE ---
+                int choix = 0;
                 do {
-                    // Affichage du menu traduit
-                    System.out.println("\n=================================");
-                    System.out.println("   " + bundle.getString("app.bienvenue"));
-                    System.out.println("=================================");
-                    System.out.println(bundle.getString("menu.choix1")); // 1. Lister...
-                    System.out.println(bundle.getString("menu.choix2")); // 2. Rechercher...
-                    System.out.println(bundle.getString("menu.choix3")); // 3. Emprunter...
-                    System.out.println(bundle.getString("menu.quitter")); // -1. Quitter
-                    System.out.print("\n" + bundle.getString("menu.votre_choix") + " ");
+                    System.out.println("\n=== " + bundle.getString("app.bienvenue") + " ===");
+                    System.out.println(bundle.getString("menu.choix1"));
+                    System.out.println(bundle.getString("menu.choix2"));
+                    System.out.println(bundle.getString("menu.choix3"));
+                    System.out.println(bundle.getString("menu.quitter"));
+                    System.out.print(bundle.getString("menu.votre_choix") + " ");
 
                     if (scanner.hasNextInt()) {
-                        choixUtilisateur = scanner.nextInt();
+                        choix = scanner.nextInt();
                         scanner.nextLine();
                     } else {
                         scanner.nextLine();
                         continue;
                     }
 
-                    switch (choixUtilisateur) {
-                        case 1:
-                            livreManager.listerTousLesLivres();
+                    switch (choix) {
+                        case 1: // Lister
+                            dao.listerTousLesLivres();
                             break;
-
-                        case 2:
+                            
+                        case 2: // Filtrer (Stream)
                             System.out.print(bundle.getString("prompt.genre") + " ");
-                            String genre = scanner.nextLine();
-
-                            List<Livre> bibliotheque = livreManager.getAllLivres();
-                            bibliotheque.stream()
-                                    .filter(l -> l.getGenre() != null && l.getGenre().equalsIgnoreCase(genre))
-                                    .forEach(l -> System.out.println("📖 " + l.getTitre()));
+                            String g = scanner.nextLine();
+                            System.out.println("--- Résultats ---");
+                            dao.getAllLivres().stream()
+                               .filter(l -> l.getGenre() != null && l.getGenre().equalsIgnoreCase(g))
+                               .forEach(l -> System.out.println(l.getTitre() + " - " + l.getAuteur().getNom()));
                             break;
-
-                        case 3:
+                            
+                        case 3: // Emprunter
                             System.out.print(bundle.getString("prompt.id_livre") + " ");
-                            int idLivre = scanner.nextInt();
-
+                            int idL = scanner.nextInt();
                             System.out.print(bundle.getString("prompt.id_inscrit") + " ");
-                            int idInscrit = scanner.nextInt();
-
+                            int idU = scanner.nextInt();
                             System.out.print(bundle.getString("prompt.duree") + " ");
-                            int duree = scanner.nextInt();
+                            int d = scanner.nextInt();
                             scanner.nextLine();
-
-                            livreManager.emprunterLivre(idLivre, idInscrit, duree);
+                            dao.emprunterLivre(idL, idU, d);
                             break;
-
+                            
                         case -1:
                             System.out.println(bundle.getString("msg.bye"));
                             break;
                     }
 
-                } while (choixUtilisateur != -1);
+                } while (choix != -1);
 
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        } else {
+            System.out.println("Erreur de connexion BDD.");
         }
     }
 }
